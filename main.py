@@ -1,7 +1,6 @@
 from Domain.Node import Node
-
-archEdges = open("../Data/wiki-topcats.txt", "r", encoding="utf-8")
-archNames = open("../Data/wiki-topcats-page-names.txt", "r", encoding="utf-8")
+archEdges = open("Data/top-20-links.txt", "r", encoding="utf-8")
+archNames = open("Data/top-20-articles.txt", "r", encoding="utf-8")
 
 nodes = { }
 
@@ -9,7 +8,7 @@ prev = -1
 
 while prev < 20:
 
-    lineEdges = archEdges.readline()
+    lineEdges = archEdges.readline().strip()
     partsEdges = lineEdges.split(" ")
 
     origin = int(partsEdges[0])
@@ -23,14 +22,20 @@ while prev < 20:
     myNodeOrigin.connect(dest, myNodeDest)
 
     if (prev != origin):
-        lineNames = archNames.readline()
+        lineNames = archNames.readline().strip()
 
         myNodeOrigin.setName(lineNames.replace(f"{origin} ", "").strip())
 
     prev = origin
 
 for node in nodes.values():
-    print(node.id, node, node.name, node.links)
+    print("--------------")
+    print(node.id,node.name)
+    print(f"LENGHT OF LINKS: {len(node.links)}")
+    for n in node.links:
+        if n == None:
+            print(f"PASS AUF: {n}")
+        print(n)
 
 archEdges.close()
 archNames.close()
