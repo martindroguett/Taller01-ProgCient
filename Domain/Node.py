@@ -1,14 +1,20 @@
 class Node:
     def __init__(self, id):
-        self.id = id
-        self.name = None
-        self.links = {}  # Diccionario vacío que guardará claves de la forma: {id : Nodo}
+        self.__id = id
+        self.__name = None
+        self.__links = {}  # Diccionario vacío que guardará claves de la forma: {id : Nodo}
 
     def setName(self, name):
-        self.name = name
+        self.__name = name
+
+    def getName(self):
+        return self.__name
 
     def getLinks(self):
-        return self.links
+        return self.__links
 
-    def connect(self, key, dest):
-        self.links[key] = dest
+    def connect(self, dest):
+        self.__links[dest.__id] = dest
+
+    def __str__(self):
+        return f" {hex(id(self))} + {self.__name} + {self.__links}"
