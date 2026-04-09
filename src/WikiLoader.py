@@ -1,9 +1,9 @@
 from pathlib import Path
-import Node
-import Graph
+
+from .Graph import Graph
 class WikiLoader:
     def __init__(self):
-        self.dir_dataset=Path().resolve().parent / "dataset"
+        self.dir_dataset=Path().resolve() / "dataset"
     
     def __cargar_nombres_categorías(self):
         ruta = self.dir_dataset / "wiki-topcats-categories.txt"
@@ -15,12 +15,17 @@ class WikiLoader:
                 if not linea or ";" not in linea:
                     continue
 
-                parte_categoria,ids = linea.split(";")
+                parte_categoria,ids = linea.strip().split(";")
                 nombre_categoria = parte_categoria.replace("Category:","").strip()
-                ids = ids.split(" ").strip()
+                
+                ids = ids.lstrip().rstrip().split(" ")
+
+                categorias[nombre_categoria] = set()
 
                 for id in ids:
-                    categorias[id] = nombre_categoria
+                    if not id: 
+                        break
+                    categorias[nombre_categoria].add(id)
         return categorias
 
     def __cargar_nombres_articulos(self):
@@ -36,7 +41,7 @@ class WikiLoader:
         return nombres
     
     def __cargar_enlaces_articulos(self):
-        ruta = self.dir_dataset / "wiki-topcats"
+        ruta = self.dir_dataset / "wiki-topcats.txt"
         edges = {}
 
         with open(ruta,"r",encoding="utf-8") as file:
@@ -58,7 +63,11 @@ class WikiLoader:
         edges = self.__cargar_enlaces_articulos()
         grafo = Graph()
 
-        for id,name in nombres:
-            grafo.add(id,name,edges[id],categorias[id])
+        for id,name in nombres.items():
+            grafo.add(id,name,edges[id])
+        grafo.cargarCategorias(categorias)
 
         return grafo
+    
+
+    

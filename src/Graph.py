@@ -1,5 +1,5 @@
 from collections import deque
-import Node
+from .Node import Node
 
 class Graph:
 
@@ -15,14 +15,21 @@ class Graph:
     def setName(self, node, name):
             node.setName(name)
 
-    def add(self,id,name,edges,categoria):
+    def add(self,id,name,edges):
         nodo = self.get_node(id)
         self.setName(nodo,name)
-        self.setCategory(nodo,categoria)
+    
+#        for edge in edges:
+            #nodo.outcomeConnect(edge)
+            #nodo_salida = self.get_node(edge)
+            #nodo_salida.incomeConnect(id)
 
-        for edge in edges:
-            node =
 
+
+    def cargarCategorias(self,categorias):
+        for cat,ids in categorias.items():
+            for id in ids:
+                self.nodes[id].addCategory(cat)
 
     def connect(self, origin, dest):
         origin.connect(dest)
