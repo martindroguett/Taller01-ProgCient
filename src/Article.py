@@ -15,16 +15,13 @@ class ArticuloWikipedia:
         self.enlaces_salida.add(id_destino)
 
     def agregar_enlace_entrada(self, id_origen):
-        pass
-        # TODO
+        self.enlaces_entrada.add(id_origen)
 
     def grado_salida(self):
-        pass
-        # TODO
+        return len(self.enlaces_salida)
 
     def grado_entrada(self):
-        pass
-        # TODO
+        return len(self.enlaces_entrada)
 
     def __str__(self):
-        return f"{self.id_articulo} - {self.nombre}"
+        return f"{self.id_articulo} - {self.nombre} grado Entrada: {self.grado_entrada()}, Grado Salida: {self.grado_salida()}"
