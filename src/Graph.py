@@ -19,10 +19,10 @@ class Graph:
         nodo = self.get_node(id)
         self.setName(nodo,name)
     
-#        for edge in edges:
-            #nodo.outcomeConnect(edge)
-            #nodo_salida = self.get_node(edge)
-            #nodo_salida.incomeConnect(id)
+        for edge in edges:
+            nodo.outcomeConnect(edge)
+            nodo_salida = self.get_node(edge)
+            nodo_salida.incomeConnect(id)
 
 
 
