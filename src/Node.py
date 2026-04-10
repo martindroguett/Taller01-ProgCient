@@ -29,5 +29,4 @@ class Node:
         self.__outcomingEdges.add(id)   
 
     def __str__(self):
-        return f" {self.__id} + {self.__name}  + {self.__categories}"
-    #+ incoming{self.__incomingEdges} + outcoming{self.__outcomingEdges}
+        return f" {self.__id} + {self.__name}  + {self.__categories}+incoming{self.__incomingEdges} + outcoming{self.__outcomingEdges}"
