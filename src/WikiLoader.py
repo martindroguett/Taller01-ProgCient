@@ -63,10 +63,6 @@ class WikiLoader:
         edges = self.__cargar_enlaces_articulos()
         grafo = Graph()
 
-        for id,name in nombres.items():
-            grafo.add(id,name,edges[id])
-        grafo.cargarCategorias(categorias)
-
         return grafo
     
 
