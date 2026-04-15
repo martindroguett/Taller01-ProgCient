@@ -1,5 +1,5 @@
 from collections import deque
-from .Node import Node
+from src.Node import Node
 
 class Graph:
 
@@ -15,21 +15,13 @@ class Graph:
     def setName(self, node, name):
             node.setName(name)
 
-    def add(self,id,name,edges):
-        nodo = self.get_node(id)
-        self.setName(nodo,name)
-    
-        for edge in edges:
-            nodo.outcomeConnect(edge)
-            nodo_salida = self.get_node(edge)
-            nodo_salida.incomeConnect(id)
+    def add(self,id_origin,name,id_dest):
+        origin = self.get_node(id_origin)
+        self.setName(origin,name)
+        origin.outcomeConnect(id_dest)
 
-
-
-    def cargarCategorias(self,categorias):
-        for cat,ids in categorias.items():
-            for id in ids:
-                self.nodes[id].addCategory(cat)
+        dest = self.get_node(id_dest)
+        dest.incomeConnect(id_origin)
 
     def connect(self, origin, dest):
         origin.connect(dest)
@@ -42,49 +34,45 @@ class Graph:
             print(id, node)
 
     def bfs(self, start):
-        queue = []
+        if start not in self.nodes:
+            return
 
-        #size = len(self.nodes) Esto pasara cuando se pruebe todo o que se deba ingresar un nodo origen de donde comenzara el bfs
-        size = 1791489
-        visited = [False] * size
+        queue = deque([start])
 
-        #for i in range(size):
-
-        #if not visited[i] and self.get_node(i).getName() is not None:
-        queue.append(start)
+        visited = set()
 
         while queue:
-            id = queue.pop(0)
+            id = queue.popleft()
 
-            if (visited[id]):
+            if (id in visited):
                 continue
 
-            print(id, self.get_node(id))
+            print(id)
 
-            visited[id] = True
+            visited.add(id)
 
             for neighbor in self.nodes[id].getLinks():
-                if not visited[neighbor]:
+                if neighbor not in visited:
                     queue.append(neighbor)
 
     def dfs(self, start):
-        stack = []
+        if start not in self.nodes:
+            return
 
-        size = 1791489
-        visited = [False] * size
+        stack = [start]
 
-        stack.append(start)
+        visited = set()
 
         while stack:
             id = stack.pop()
 
-            if (visited[id]):
+            if id in visited:
                 continue
 
-            print(id, self.get_node(id))
+            print(id)
 
-            visited[id] = True
+            visited.add(id)
 
             for neighbor in self.nodes[id].getLinks():
-                if not visited[neighbor]:
+                if neighbor not in visited:
                     stack.append(neighbor)
