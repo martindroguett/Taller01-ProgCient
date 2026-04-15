@@ -1,38 +1,35 @@
 from collections import deque
-from .Node import Node
 from functools import reduce
+from src.Node import Node
 
 class Graph:
 
     def __init__(self):
-        self.__nodes = { }
+        self.nodes = { }
 
-    #Obtención
     def get_node(self, id):
         try:
-            return self.__nodes[id]
+            return self.nodes[id]
 
         except KeyError:
             self.__nodes[id] = Node(id)
             return self.__nodes[id]
 
-    #Agregación
-    def add(self,id,name,edges):
-        node = self.get_node(id)
-        node.set_name(name)
-#        for edge in edges:
-            #nodo.outcomeConnect(edge)
-            #nodo_salida = self.get_node(edge)
-            #nodo_salida.incomeConnect(id)
-    #Enlace
+    def setName(self, node, name):
+            node.setName(name)
+
+    def add(self,id_origin,name,id_dest):
+        origin = self.get_node(id_origin)
+        self.setName(origin,name)
+        origin.outcomeConnect(id_dest)
+
+        dest = self.get_node(id_dest)
+        dest.incomeConnect(id_origin)
+
     def connect(self, origin, dest):
         origin.connect(dest)
 
     #Categories
-    def load_categories(self,categories):
-        for cat,ids in categories.items():
-            for id in ids:
-                self.__nodes[id].addCategory(cat)
 
     def count_nodes(self):
         return len(self.__nodes)
@@ -57,32 +54,36 @@ class Graph:
         }
 
     def debug(self):
-        if (len(self.__nodes) == 0):
+        if (len(self.nodes) == 0):
             print("No hay nodes")
 
-        for id, node in self.__nodes.items():
+        for id, node in self.nodes.items():
             print(id, node)
 
     def bfs(self, start):
-        if (start not in self.__nodes):
+        if start not in self.nodes:
             return
 
         queue = deque([start])
 
-        visited = set([start])
+        visited = set()
 
         while queue:
             id = queue.popleft()
 
-            print(id, self.get_node(id))
+            if (id in visited):
+                continue
 
-            for neighbor in self.__nodes[id].getLinks():
+            print(id)
+
+            visited.add(id)
+
+            for neighbor in self.nodes[id].getLinks():
                 if neighbor not in visited:
-                    visited.add(neighbor)
                     queue.append(neighbor)
 
     def dfs(self, start):
-        if (start not in self.__nodes):
+        if start not in self.nodes:
             return
 
         stack = [start]
@@ -95,9 +96,10 @@ class Graph:
             if id in visited:
                 continue
 
-            print(id, self.get_node(id))
+            print(id)
+
             visited.add(id)
 
-            for neighbor in self.__nodes[id].getLinks():
+            for neighbor in self.nodes[id].getLinks():
                 if neighbor not in visited:
                     stack.append(neighbor)

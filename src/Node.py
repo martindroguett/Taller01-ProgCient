@@ -10,14 +10,14 @@ class Node:
     def setName(self, name):
         self.__name = name
 
-    def addCategory(self,category):
+    def add_cat(self,category):
         self.__categories.add(category)
 
     def getName(self):
         return self.__name
 
     def getLinks(self):
-        return self.__links
+        return self.__outcomingEdges
 
     def connect(self, dest):
         self.__links[dest.__id] = dest
@@ -29,4 +29,5 @@ class Node:
         self.__outcomingEdges.add(id)   
 
     def __str__(self):
-        return f" {self.__id} + {self.__name}  + {self.__categories}+incoming{self.__incomingEdges} + outcoming{self.__outcomingEdges}"
+
+        return f" {self.__id} + {self.__name}  + {self.__categories}+incoming{self.__incomingEdges} + outcoming{self.__outcomingEdges}\n================================="
