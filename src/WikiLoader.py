@@ -4,28 +4,7 @@ from src.Graph import Graph
 class WikiLoader:
     def __init__(self):
         self.dir_dataset = Path().resolve() / "dataset"
-    
-    def __cargar_nombres_categorías(self):
-        ruta = self.dir_dataset / "wiki-topcats-Category_names.txt"
-        categorias = {}
-        with open(ruta,"r",encoding="utf-8") as file:
-            for linea in file:
 
-                if not linea or ";" not in linea:
-                    continue
-
-                parte_categoria,ids = linea.strip().split(";")
-                nombre_categoria = parte_categoria.replace("Category:","").strip()
-                
-                ids = ids.lstrip().rstrip().split(" ")
-
-                categorias[nombre_categoria] = set()
-
-                for id in ids:
-                    if not id: 
-                        break
-                    categorias[nombre_categoria].add(id)
-        return categorias
 
     def cargar_nombres_categorias(self):
         ruta = self.dir_dataset / "wiki-topcats_Category_names.txt"
@@ -58,10 +37,10 @@ class WikiLoader:
 
                 if len(partes) >= 2:
 
-                    origin = int(partes[1])
-                    dest = int(partes[0])
+                    origin = int(partes[0])
+                    dest = int(partes[1])
 
-                    yield dest, origin
+                    yield origin, dest
 
     def cargar_categorias(self, ruta):
         with open(ruta,"r",encoding="utf-8") as file:
@@ -93,15 +72,18 @@ class WikiLoader:
 
         try:
             id_nombre, nombre = next(gen_nombres)
-            dest, origin = next(gen_edges)
+            origin, dest = next(gen_edges)
 
             while True:
-                if id_nombre == origin:
+                if id_nombre == dest:
                     grafo.add(origin, nombre, dest)
-                    dest, origin = next(gen_edges)
+                    origin, dest = next(gen_edges)
 
                 else:
+                    if id_nombre < dest:
+                        grafo.add(-1, nombre, id_nombre)
                     id_nombre, nombre = next(gen_nombres)
+
 
         except StopIteration:
             pass
