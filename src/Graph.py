@@ -34,10 +34,13 @@ class Graph:
     def count_nodes(self):
         return len(self.nodes)
 
+    #def count_edges(self):
+    #    return reduce(lambda x,y: x.getOutcoming() + y.getOutcoming(), self.nodes)
     def count_edges(self):
-        return reduce(lambda x,y: x.getOutcoming() + y.getOutcoming(), self.nodes)
+        return reduce(lambda x, y: x + y.get_outcome_len(), self.nodes.values(), 0) #MISMO CASO, SE CAMBIO A COMO ESTABA EN NODE
 
-    def top_outcoming(self, places = 10):
+
+    """def top_outcoming(self, places = 10):
         l = list(self.nodes.values())
         l.sort(key = lambda node: node.getOutcoming())
         return l[:places]
@@ -45,8 +48,19 @@ class Graph:
     def top_incoming(self, places = 10):
         l = (list(self.nodes.values()))
         l.sort(key=lambda node: node.getIncoming())
-        return l[-places:]
+        return l[-places:]"""
 
+#EN AMBAS SE CAMBIARON LOS METODOS A COMO ESTABAN EN NODE. REVERSE PARA MAYOR A MENOR
+    def top_outcoming(self, places = 10):
+        l = list(self.nodes.values())
+        l.sort(key = lambda node: node.get_outcome_len(), reverse=True)
+        return l[:places]
+
+    def top_incoming(self, places = 10):
+        l = list(self.nodes.values())
+        l.sort(key=lambda node: node.get_income_len(), reverse=True)
+        return l[:places]
+    
     def summary(self):
         return {
             "articulos": self.count_nodes(),
