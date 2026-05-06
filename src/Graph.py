@@ -5,16 +5,20 @@ from src.Node import Node
 class Graph:
 
     def __init__(self):
-        self.nodes = { }
+        self.nodes_id = { }
+        self.names_id = { }
 
     def get_node(self, id):
-        if id not in self.nodes:
-            self.nodes[id] = Node(id)
+        if id not in self.nodes_id:
+            self.nodes_id[id] = Node(id)
 
-        return self.nodes[id]
+        return self.nodes_id[id]
+
+    def get_ids_by_name(self, name):
+        return self.names_id.get(name, set())
 
     def get_nodes(self):
-        return self.nodes
+        return self.nodes_id
 
     def set_name(self, node, name):
             node.set_name(name)
@@ -23,41 +27,30 @@ class Graph:
         dest = self.get_node(id_dest)
         if dest.get_name() is None:
             self.set_name(dest,name)
+            if name not in self.names_id:
+                self.names_id[name] = set()
+
+            self.names_id[name].add(id_dest)
 
         if id_origin != -1:
             origin = self.get_node(id_origin)
             origin.outcome_connect(id_dest)
             dest.income_connect(id_origin)
 
-    #Categories
-
+    #Categorias
     def count_nodes(self):
-        return len(self.nodes)
+        return len(self.nodes_id)
 
-    #def count_edges(self):
-    #    return reduce(lambda x,y: x.getOutcoming() + y.getOutcoming(), self.nodes)
     def count_edges(self):
-        return reduce(lambda x, y: x + y.get_outcome_len(), self.nodes.values(), 0) #MISMO CASO, SE CAMBIO A COMO ESTABA EN NODE
+        return reduce(lambda x, y: x + y.get_outcome_len(), self.nodes_id.values(), 0)
 
-
-    """def top_outcoming(self, places = 10):
-        l = list(self.nodes.values())
-        l.sort(key = lambda node: node.getOutcoming())
-        return l[:places]
-
-    def top_incoming(self, places = 10):
-        l = (list(self.nodes.values()))
-        l.sort(key=lambda node: node.getIncoming())
-        return l[-places:]"""
-
-#EN AMBAS SE CAMBIARON LOS METODOS A COMO ESTABAN EN NODE. REVERSE PARA MAYOR A MENOR
     def top_outcoming(self, places = 10):
-        l = list(self.nodes.values())
+        l = list(self.nodes_id.values())
         l.sort(key = lambda node: node.get_outcome_len(), reverse=True)
         return l[:places]
 
     def top_incoming(self, places = 10):
-        l = list(self.nodes.values())
+        l = list(self.nodes_id.values())
         l.sort(key=lambda node: node.get_income_len(), reverse=True)
         return l[:places]
     
@@ -68,36 +61,49 @@ class Graph:
         }
 
     def debug(self):
-        if len(self.nodes) == 0:
+        if len(self.nodes_id) == 0:
             print("No hay nodes")
 
-        for id, node in self.nodes.items():
+        for id, node in self.nodes_id.items():
             print(id, node)
 
-    def bfs(self, start):
-        if start not in self.nodes:
+    def bfs(self, start, end = None):
+        if start not in self.nodes_id:
             return
 
-        queue = deque([start])
+        parent = {start: None}
 
-        visited = set()
+        if start == end:
+            return [start]
+
+        queue = deque([start])
 
         while queue:
             id = queue.popleft()
 
-            if id in visited:
-                continue
-
-            print(id)
-
-            visited.add(id)
-
-            for neighbor in self.nodes[id].get_outcome():
-                if neighbor not in visited:
+            for neighbor in self.nodes_id[id].get_outcome():
+                if neighbor not in parent:
+                    parent[neighbor] = id
                     queue.append(neighbor)
 
+                    if end is not None and neighbor == end:
+                        return self.path(parent, end)
+
+        return None
+
+    def path(self, parent, end):
+        path = []
+        curr = end
+
+        while curr is not None:
+            path.append(curr)
+            curr = parent[curr]
+
+        path.reverse()
+        return path
+
     def dfs(self, start):
-        if start not in self.nodes:
+        if start not in self.nodes_id:
             return
 
         stack = [start]
@@ -110,30 +116,28 @@ class Graph:
             if id in visited:
                 continue
 
-            print(id)
-
             visited.add(id)
 
-            for neighbor in self.nodes[id].getLinks():
+            for neighbor in self.nodes_id[id].get_outcome():
                 if neighbor not in visited:
                     stack.append(neighbor)
 
     def pagerank(self, iteraciones = 20, d = 0.85):
 
-        nodes = len(self.nodes)
+        nodes = len(self.nodes_id)
         if nodes == 0:
             print("No hay nodos")
             return 0
 
-        puntajes = {id: 1/nodes for id in self.nodes.keys()}
+        puntajes = {id: 1/nodes for id in self.nodes_id.keys()}
 
         for _ in range(iteraciones):
 
-            puntajes_temp = {id: (1 - d)/nodes for id in self.nodes.keys()}
+            puntajes_temp = {id: (1 - d)/nodes for id in self.nodes_id.keys()}
 
             extra = 0
 
-            for id, n in self.nodes.items():
+            for id, n in self.nodes_id.items():
                 if n.get_outcome_len() == 0:
 
                     extra += (puntajes[id] * d) / nodes

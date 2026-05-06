@@ -22,7 +22,7 @@ class WikiLoader:
                 if not nombre:
                     continue
 
-                yield id,nombre
+                yield id,nombre.strip()
 
     def cargar_edges(self, ruta):
         with open(ruta,"r",encoding="utf-8") as file:

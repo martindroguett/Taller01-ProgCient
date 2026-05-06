@@ -20,10 +20,10 @@ class Node:
 
     def get_outcome(self):
         return self.__outcomingEdges
-#AÑADIDO---    
+
     def get_categories(self):
         return self.__categories
-#----------
+
     def income_connect(self,id):
         self.__incomingEdges.add(id)
 
@@ -35,7 +35,6 @@ class Node:
 
     def get_income_len(self):
         return len(self.__incomingEdges)
-    
 
     def __str__(self):
         return f" {self.__id} + {self.__name}  + {self.__categories}+incoming{self.__incomingEdges} + outcoming{self.__outcomingEdges}\n================================="
