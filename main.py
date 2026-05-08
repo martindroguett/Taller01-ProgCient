@@ -169,5 +169,5 @@ def bfs(grafo):
 grafo = cargar_grafo()
 resumen(grafo)
 
-#grados(grafo)
-#cargar_CSV_pagerank(grafo, pagerank(grafo, 0))
+grados(grafo)
+cargar_CSV_pagerank(grafo, pagerank(grafo, 0))
