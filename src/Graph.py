@@ -1,18 +1,23 @@
 from collections import deque
 from functools import reduce
 from src.Node import Node
+from src.Category import Category
 
 class Graph:
 
     def __init__(self):
-        self.nodes_id = { }
-        self.names_id = { }
+        self.nodes_id = { } #id: nodo
+        self.names_id = { } #id: nombre
+        self.cats = { } #id_cat: cat
 
     def get_node(self, id):
         if id not in self.nodes_id:
             self.nodes_id[id] = Node(id)
 
         return self.nodes_id[id]
+
+    def get_cat(self, id):
+        return self.cats.get(id, None)
 
     def get_ids_by_name(self, name):
         return self.names_id.get(name, set())
@@ -21,7 +26,7 @@ class Graph:
         return self.nodes_id
 
     def set_name(self, node, name):
-            node.set_name(name)
+        node.set_name(name)
 
     def add(self,id_origin,name,id_dest):
         dest = self.get_node(id_dest)
@@ -67,7 +72,7 @@ class Graph:
         for id, node in self.nodes_id.items():
             print(id, node)
 
-    def bfs(self, start, end = None):
+    def bfs(self, start, end = None, print_bool = False):
         if start not in self.nodes_id:
             return
 
@@ -81,6 +86,9 @@ class Graph:
         while queue:
             id = queue.popleft()
 
+            if print_bool:
+                print(self.nodes_id[id])
+
             for neighbor in self.nodes_id[id].get_outcome():
                 if neighbor not in parent:
                     parent[neighbor] = id
@@ -89,7 +97,7 @@ class Graph:
                     if end is not None and neighbor == end:
                         return self.path(parent, end)
 
-        return None
+        return "No hay camino"
 
     def path(self, parent, end):
         path = []
@@ -102,7 +110,7 @@ class Graph:
         path.reverse()
         return path
 
-    def dfs(self, start):
+    def dfs(self, start, print_bool = False):
         if start not in self.nodes_id:
             return
 
@@ -112,6 +120,9 @@ class Graph:
 
         while stack:
             id = stack.pop()
+
+            if print_bool:
+                print(self.nodes_id[id])
 
             if id in visited:
                 continue
@@ -157,3 +168,23 @@ class Graph:
             puntajes = puntajes_temp
 
         return puntajes
+
+    def see_nodes(self, n = 10):
+        id = 1
+        while id <= len(self.nodes_id):
+
+            for i in range(n):
+                print(self.nodes_id.get(id, ""))
+                id += 1
+
+            yield
+
+    def see_cats(self, n = 10):
+        id = 1
+        while id <= len(self.cats):
+
+            for i in range(n):
+                print(self.cats.get(id, ""))
+                id += 1
+
+            yield

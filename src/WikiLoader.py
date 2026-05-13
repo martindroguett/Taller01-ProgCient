@@ -1,18 +1,19 @@
 from pathlib import Path
 
 from src.Graph import Graph
+from src.Category import Category
+
 class WikiLoader:
     def __init__(self):
         self.dir_dataset = Path().resolve() / "dataset"
-
 
     def cargar_nombres_categorias(self):
         ruta = self.dir_dataset / "wiki-topcats_Category_names.txt"
         categorias = {}
 
         with open(ruta,"r",encoding="utf-8") as file:
-            for idx,linea in enumerate(file, start=1):
-                categorias[idx] = linea.strip()
+            for id,linea in enumerate(file, start=1):
+                categorias[id] = Category(id, linea.strip())
 
         return categorias
 
@@ -88,7 +89,7 @@ class WikiLoader:
         except StopIteration:
             pass
 
-        categorias = self.cargar_nombres_categorias()
+        grafo.cats = self.cargar_nombres_categorias()
         rutaCat = self.dir_dataset / "wiki-topcats_Categories.mtx"
 
         gen_cats = self.cargar_categorias(rutaCat)
@@ -97,7 +98,10 @@ class WikiLoader:
             id_cat, id_node = next(gen_cats)
 
             while True:
-                grafo.get_node(id_node).add_cat(categorias[id_cat])
+                node = grafo.get_node(id_node)
+                node.add_cat(grafo.cats[id_cat])
+
+                grafo.cats[id_cat].add_node(node)
                 id_cat, id_node = next(gen_cats)
 
         except StopIteration:

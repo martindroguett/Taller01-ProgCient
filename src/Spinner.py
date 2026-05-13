@@ -4,27 +4,27 @@ import threading
 import itertools
 
 class Spinner:
-    def __init__(self, mensaje="Cargando"):
-        self.mensaje = mensaje
-        self.detener = False
-        self.hilo = None
+    def __init__(self, msg="Cargando"):
+        self.msg = msg
+        self.stopped = False
+        self.thread = None
 
     def start(self):
-        self.detener = False
-        self.hilo = threading.Thread(target=self._animar)
-        self.hilo.start()
+        self.stopped = False
+        self.thread = threading.Thread(target=self.__animate)
+        self.thread.start()
 
-    def _animar(self):
-        caracteres = itertools.cycle(['-', '\\', '|', '/'])
-        while not self.detener:
-            sys.stdout.write(f'\r{self.mensaje} {next(caracteres)}')
+    def __animate(self):
+        chars = itertools.cycle(['-', '\\', '|', '/'])
+        while not self.stopped:
+            sys.stdout.write(f'\r{self.msg} {next(chars)}')
             sys.stdout.flush()
             time.sleep(0.3)
 
-        sys.stdout.write(f'\r{self.mensaje} Listo!\n')
+        sys.stdout.write(f'\r{self.msg} Listo!\n')
         sys.stdout.flush()
 
     def stop(self):
-        self.detener = True
-        if self.hilo is not None:
-            self.hilo.join()
+        self.stopped = True
+        if self.thread is not None:
+            self.thread.join()

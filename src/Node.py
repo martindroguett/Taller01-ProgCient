@@ -3,8 +3,8 @@ class Node:
         self.__id = id
         self.__name = None
         self.__categories = set()
-        self.__incomingEdges = set()
-        self.__outcomingEdges = set()
+        self.__incoming_edges = set()
+        self.__outcoming_edges = set()
 
     def get_id(self):
         return self.__id
@@ -19,22 +19,22 @@ class Node:
         return self.__name
 
     def get_outcome(self):
-        return self.__outcomingEdges
+        return self.__outcoming_edges
 
     def get_categories(self):
         return self.__categories
 
     def income_connect(self,id):
-        self.__incomingEdges.add(id)
+        self.__incoming_edges.add(id)
 
     def outcome_connect(self,id):
-        self.__outcomingEdges.add(id)
+        self.__outcoming_edges.add(id)
 
     def get_outcome_len(self):
-        return len(self.__outcomingEdges)
+        return len(self.__outcoming_edges)
 
     def get_income_len(self):
-        return len(self.__incomingEdges)
+        return len(self.__incoming_edges)
 
     def __str__(self):
-        return f" {self.__id} + {self.__name}  + {self.__categories}+incoming{self.__incomingEdges} + outcoming{self.__outcomingEdges}\n================================="
+        return f"id: {self.__id}\nnombre: {self.__name}\ncategorias: {self.__categories}\nids entrada: {self.__incoming_edges}\nids salida: {self.__outcoming_edges}\n================================="

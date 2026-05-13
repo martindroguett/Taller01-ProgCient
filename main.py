@@ -1,4 +1,5 @@
 import csv
+import os
 from src.WikiLoader import WikiLoader
 from src.Spinner import Spinner
 from collections import Counter
@@ -12,7 +13,7 @@ def cargar_grafo():
     spinner.stop()
     return grafo
 
-def grados(grafo):
+def cargar_CSV_grados(grafo):
 
     spinner = Spinner("Cargando grados...")
     spinner.start()
@@ -45,9 +46,6 @@ def grados(grafo):
     spinner.stop()
 
 def pagerank(grafo, top = 100, i = 20, d = 0.85):
-    if (i != 20 and d != 0.85):
-        i = int(input("Iteraciones: "))
-        d = float(input("Factor de amortiguación: "))
 
     spinner = Spinner("Cargando puntajes pagerank...")
     spinner.start()
@@ -82,9 +80,11 @@ def cargar_CSV_pagerank(grafo, puntajes):
             cat_nodo = nodo_actual.get_categories()
 
             if len(cat_nodo) > 0:
-                texto_cat = ", ".join(cat_nodo)
-            else:
+                for cat in cat_nodo:
+                    cat.sumar_puntaje(p)
 
+                texto_cat = ", ".join([cat.get_name() for cat in cat_nodo])
+            else:
                 texto_cat = "sin categoria"
 
             fila_a_escribir = [pos, id, nombre_articulo, p, texto_cat]
@@ -93,16 +93,17 @@ def cargar_CSV_pagerank(grafo, puntajes):
 
     spinner.stop()
 
-def cargar_CSV_cat(cat):
-    nombre_archivo_nodos = "nodos_taller1.csv"
-    nombre_archivo_edges = "edges_taller1.csv"
-    
-    nodos = grafo.get_nodes()
+def cargar_CSV_filtrado_cat(grafo, cat_id):
     
     spinner = Spinner("Contando conexiones...")
     spinner.start()
-    
-    nodos_filtro = set([id for id,nodo in nodos.items() if cat in nodo.get_categories()])
+
+    cat = grafo.get_cat(cat_id)
+
+    nombre_archivo_nodos = f"nodos_cat_{cat.get_name()}.csv"
+    nombre_archivo_edges = f"edges_cat_{cat.get_name()}.csv"
+
+    nodos = cat.nodes_id
     
     with open(nombre_archivo_nodos, "w", newline='', encoding="utf-8") as archivo_nodos, open(nombre_archivo_edges, "w", newline='', encoding="utf-8") as archivo_edges:
         writter_nodos = csv.writer(archivo_nodos)
@@ -116,7 +117,7 @@ def cargar_CSV_cat(cat):
     
         pos = 1
     
-        for id in nodos_filtro:
+        for id, nodo in nodos.items():
     
             nodo = nodos[id]
     
@@ -124,7 +125,7 @@ def cargar_CSV_cat(cat):
             cat_nodo = nodo.get_categories()
     
             if len(cat_nodo) > 0:
-                texto_cat = ", ".join(cat_nodo)
+                texto_cat = ", ".join([cat.get_name() for cat in cat_nodo])
             else:
                 texto_cat = "sin categoria"
     
@@ -137,22 +138,37 @@ def cargar_CSV_cat(cat):
     
             for id_destino in outcome:
     
-                if id_destino in nodos_filtro:
+                if id_destino in nodos:
                     edge_linea = [id, id_destino, "Directed", 1]
                     writter_edges.writerow(edge_linea)
     
     spinner.stop()
     print("Archivos CSV creados")
 
+def cargar_CSV_cat(grafo):
+    spinner = Spinner("Creando archivo CSV categorias...")
+    spinner.start()
+
+    with open("top_categories.csv", "w", newline='', encoding="utf-8") as archivo:
+        writter = csv.writer(archivo)
+
+        titulos = ["Id", "Nombre", "Frecuencia", "PageRank_Score"]
+        writter.writerow(titulos)
+
+        for id,cat in sorted(grafo.cats.items(), key = lambda x: x[1].get_pagerank(), reverse=True):
+            writter.writerow([id, cat.get_name(), cat.get_len(), cat.get_pagerank()])
+
+    spinner.stop()
+
 def resumen(grafo):
     resumen_final = grafo.summary()
     print("resumen final:", resumen_final)
 
-def bfs(grafo):
+def camino_corto(grafo, name1, name2):
 
-    print(list(grafo.get_ids_by_name("Patrioticheskaya Pesnya")))
+    print(list(grafo.get_ids_by_name(name1)))
     print("-" * 20)
-    print(list(grafo.get_ids_by_name("Dyatlov Pass incident")))
+    print(list(grafo.get_ids_by_name(name2)))
 
     start = int(input("Start: "))
     end = int(input("End: "))
@@ -166,8 +182,110 @@ def bfs(grafo):
         nodo = grafo.get_node(i)
         print(f"-> {nodo.get_name()} (id: {nodo.get_id()})")
 
-grafo = cargar_grafo()
-resumen(grafo)
+def ver_nodos(grafo):
+    jump = int(input("Introduce los nodos por pag: "))
 
-#grados(grafo)
-#cargar_CSV_pagerank(grafo, pagerank(grafo, 0))
+    gen = grafo.see_nodes(jump)
+
+    try:
+        while True:
+            next(gen)
+            key = input("\nIngrese cualquier tecla para siguiente pagina (x para salir): ").lower()
+
+            if (key == "x"):
+                return
+
+    except StopIteration:
+        pass
+
+def ver_cats(grafo):
+    jump = int(input("Introduce las categorias por pag: "))
+
+    gen = grafo.see_cats(jump)
+
+    try:
+        while True:
+            next(gen)
+            key = input("\nIngrese cualquier tecla para siguiente pagina (x para salir): ").lower()
+
+            if (key == "x"):
+                return
+
+    except StopIteration:
+        pass
+
+def menu():
+    print("Taller 01: Prog. Cientifica")
+
+    grafo = cargar_grafo()
+
+    option = 0
+
+    print()
+
+    while (option != 11):
+        print("1. Cargar CSVs con informacion de grados de los nodos")
+        print("2. Cargar CSV con Pageranks de cada nodo")
+        print("3. Cargar CSV con informacion de categorias")
+        print("4. Cargar CSV filtrando por categoria")
+        print("5. Obtener resumen del grafo")
+        print("6. Obtener camino mas corto entre dos nodos")
+        print("7. Hacer BFS desde un nodo origen")
+        print("8. Hacer DFS desde un nodo origen")
+        print("9. Ver informacion de nodos")
+        print("10. Ver informacion de categorias")
+        print("11. Salir")
+        print("* Nota: Los archivos CSV se veran reflejados una vez termine el programa")
+        option = int(input("> "))
+
+        print()
+        print("\033[H\033[J", end="")
+
+        if option == 1:
+            cargar_CSV_grados(grafo)
+
+        elif option == 2:
+            top = int(input("Ingrese los x primeros nodos (0 para todos): "))
+            i = int(input("Iteraciones: "))
+            d = float(input("Factor de amortiguación: "))
+
+            cargar_CSV_pagerank(grafo, top, i, d)
+
+        elif option == 3:
+            cargar_CSV_cat(grafo)
+
+        elif option == 4:
+
+            id = int(input("Introduce el id de la categoria: "))
+            cargar_CSV_filtrado_cat(grafo, id)
+
+        elif option == 5:
+            grafo.resumen()
+
+        elif option == 6:
+            name1 = input("Introduce el nombre del nodo origen: ")
+            name2 = input("Introduce el nombre del nodo destino: ")
+
+            camino_corto(grafo, name1, name2)
+
+        elif option == 7:
+            id = int(input("Introduce el id del nodo origen: "))
+            grafo.bfs(id, None, True)
+
+        elif option == 8:
+            id = int(input("Introduce el id del nodo origen: "))
+            grafo.dfs(id, True)
+
+        elif option == 9:
+            ver_nodos(grafo)
+
+        elif option == 10:
+            ver_cats(grafo)
+
+        elif option == 11:
+            print("Saliendo...")
+
+        print()
+
+if __name__ == "__main__":
+    menu()
