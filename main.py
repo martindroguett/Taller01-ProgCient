@@ -1,5 +1,4 @@
 import csv
-import os
 from src.WikiLoader import WikiLoader
 from src.Spinner import Spinner
 from collections import Counter
