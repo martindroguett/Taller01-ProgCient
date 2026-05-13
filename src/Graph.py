@@ -188,3 +188,34 @@ class Graph:
                 id += 1
 
             yield
+
+    def bfs_cut_farness(self, id_start_node):
+        """
+        Computes the farness (sum of shortest paths) of a node
+        using a BFS cut pruning approach.
+        """
+        # Initialize distances
+        distances = {node: -1 for node in self.get_nodes()}
+        distances[id_start_node] = 0
+        queue = [id_start_node]
+
+        total_distance = 0
+        nodes_visited = 0
+
+        # Standard BFS
+        while queue:
+            current_node = queue.pop(0)
+            current_dist = distances[current_node]
+            total_distance += current_dist
+            nodes_visited += 1
+            for neighbor in self.get_node(current_node).get_outcome():
+                if distances[neighbor] == -1:
+                    distances[neighbor] = current_dist + 1
+                    queue.append(neighbor)
+
+        # Closeness is 1 / farness
+        if total_distance == 0:
+            return 0
+
+        # Return farness; low farness = high closeness
+        return total_distance
