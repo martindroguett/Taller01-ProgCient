@@ -166,8 +166,58 @@ def bfs(grafo):
         nodo = grafo.get_node(i)
         print(f"-> {nodo.get_name()} (id: {nodo.get_id()})")
 
-grafo = cargar_grafo()
-resumen(grafo)
+def obtener_nodos_ordenados_por_grado(grafo):
+    datos = []
+    for id, nodo in grafo.nodes_id.items():
+        datos.append((id, nodo.get_outcome_len()))
+    return sorted(datos, key=lambda n: n[1], reverse=True)
 
-grados(grafo)
-cargar_CSV_pagerank(grafo, pagerank(grafo, 0))
+def top_k_cercanías(grafo, k):
+    """
+    Computes Top-K nodes based on closeness centrality using cut.
+    """
+    # Sort nodes by degree to improve pruning efficiency
+    nodes_sorted = obtener_nodos_ordenados_por_grado(grafo)
+    node_farness = {}
+    for node in nodes_sorted:
+        farness = grafo.bfs_cut_farness(node[0])
+        node_farness[node[0]] = farness
+    sorted_nodes = sorted(node_farness.items(), key=lambda x: x[1],reverse=True)
+    return [(id,farness) for id, farness in sorted_nodes[:k]]
+
+def cargar_CSV_closeness(grafo, top_k_cercanias):
+
+    spinner = Spinner("Creando archivo CSV closeness...")
+    spinner.start()
+
+    with open("top_closeness.csv", "w", newline='', encoding="utf-8") as archivo:
+        writter = csv.writer(archivo)
+
+        titulos = ["Posicion", "ID_Nodo", "Nombre_Articulo", "Closeness_Centrality","Categorias"]
+        writter.writerow(titulos)
+
+        for pos, (id, closeness) in enumerate(top_k_cercanias):
+
+            nodo_actual = grafo.get_node(id)
+            nombre_articulo = nodo_actual.get_name()
+            cat_nodo = nodo_actual.get_categories()
+
+            if len(cat_nodo) > 0:
+                texto_cat = ", ".join(cat_nodo)
+            else:
+
+                texto_cat = "sin categoria"
+
+            fila_a_escribir = [pos, id, nombre_articulo, closeness, texto_cat]
+
+            writter.writerow(fila_a_escribir)
+
+    spinner.stop()
+
+grafo = cargar_grafo()
+
+#resumen(grafo)
+#grados(grafo)
+#cargar_CSV_pagerank(grafo, pagerank(grafo, 0))
+
+cargar_CSV_closeness(grafo, top_k_cercanías(grafo, 100))
