@@ -2,6 +2,7 @@ import csv
 from src.WikiLoader import WikiLoader
 from src.Spinner import Spinner
 from collections import Counter
+import time
 
 def cargar_grafo():
     spinner = Spinner("Cargando wikiloader...")
@@ -213,6 +214,93 @@ def ver_cats(grafo):
     except StopIteration:
         pass
 
+def obtener_nodos_ordenados_por_grado(grafo):
+    datos = []
+    for id, nodo in grafo.nodes_id.items():
+        datos.append((id, nodo.get_outcome_len()))
+    return sorted(datos, key=lambda n: n[1], reverse=True)
+
+def top_k_cercanías(grafo, k):
+    """
+    Computes Top-K nodes based on closeness centrality using cut.
+    """
+    # Sort nodes by degree to improve pruning efficiency
+
+    spinner = Spinner("Cargando cercanias...")
+    spinner.start()
+
+    print("Ordenando nodos por grado...")
+
+    nodes_sorted = obtener_nodos_ordenados_por_grado(grafo)
+    node_farness = []
+
+    threshold = float('inf')
+    total_nodos = len(nodes_sorted)
+
+    print(f"Iniciando cálculo para {total_nodos} nodos con K={k}...")
+
+    start_time_global = time.time()
+
+    for i, (node_id, grado) in enumerate(nodes_sorted):
+
+        start_node_time = time.time()
+
+        farness = grafo.bfs_cut_farness(node_id, threshold)
+
+        end_node_time = time.time()
+
+        if farness != float('inf'):
+
+            node_farness.append((farness, node_id))
+
+            node_farness.sort(key=lambda x: x[0])
+
+            if len(node_farness) > k:
+                node_farness.pop()
+
+            if len(node_farness) == k:
+                threshold = node_farness[-1][0]
+
+        if i <= k or i % 10000 == 0:
+            tiempo_nodo = end_node_time - start_node_time
+            tiempo_total = (time.time() - start_time_global) / 60
+            print(f"[{i + 1}/{total_nodos}] Nodo {node_id} procesado en {tiempo_nodo:.4f}s | Threshold: {threshold} | Tiempo total: {tiempo_total:.2f} min")
+
+    spinner.stop()
+
+    return [(id,farness) for farness, id in node_farness]
+
+def cargar_CSV_closeness(grafo, top_k_cercanias):
+
+    spinner = Spinner("Creando archivo CSV closeness...")
+    spinner.start()
+
+    with open("top_closeness.csv", "w", newline='', encoding="utf-8") as archivo:
+        writter = csv.writer(archivo)
+
+        titulos = ["Posicion", "ID_Nodo", "Nombre_Articulo", "Closeness_Centrality","Categorias"]
+        writter.writerow(titulos)
+
+        for pos, (id, farness) in enumerate(top_k_cercanias, start = 1):
+
+            closeness = 1 / farness
+
+            nodo_actual = grafo.get_node(id)
+            nombre_articulo = nodo_actual.get_name()
+            cat_nodo = nodo_actual.get_categories()
+
+            if len(cat_nodo) > 0:
+                texto_cat = ", ".join([cat.get_name() for cat in cat_nodo])
+            else:
+
+                texto_cat = "sin categoria"
+
+            fila_a_escribir = [pos, id, nombre_articulo, closeness, texto_cat]
+
+            writter.writerow(fila_a_escribir)
+
+    spinner.stop()
+
 def menu():
     print("Taller 01: Prog. Cientifica")
 
@@ -227,13 +315,14 @@ def menu():
         print("2. Cargar CSV con Pageranks de cada nodo")
         print("3. Cargar CSV con informacion de categorias")
         print("4. Cargar CSV filtrando por categoria")
-        print("5. Obtener resumen del grafo")
-        print("6. Obtener camino mas corto entre dos nodos")
-        print("7. Hacer BFS desde un nodo origen")
-        print("8. Hacer DFS desde un nodo origen")
-        print("9. Ver informacion de nodos")
-        print("10. Ver informacion de categorias")
-        print("11. Salir")
+        print("5. Cargar CSV farness")
+        print("6. Obtener resumen del grafo")
+        print("7. Obtener camino mas corto entre dos nodos")
+        print("8. Hacer BFS desde un nodo origen")
+        print("9. Hacer DFS desde un nodo origen")
+        print("10. Ver informacion de nodos")
+        print("11. Ver informacion de categorias")
+        print("12. Salir")
         print("* Nota: Los archivos CSV se veran reflejados una vez termine el programa")
         option = int(input("> "))
 
@@ -247,55 +336,6 @@ def menu():
             top = int(input("Ingrese los x primeros nodos (0 para todos): "))
             i = int(input("Iteraciones: "))
             d = float(input("Factor de amortiguación: "))
-def obtener_nodos_ordenados_por_grado(grafo):
-    datos = []
-    for id, nodo in grafo.nodes_id.items():
-        datos.append((id, nodo.get_outcome_len()))
-    return sorted(datos, key=lambda n: n[1], reverse=True)
-
-def top_k_cercanías(grafo, k):
-    """
-    Computes Top-K nodes based on closeness centrality using cut.
-    """
-    # Sort nodes by degree to improve pruning efficiency
-    nodes_sorted = obtener_nodos_ordenados_por_grado(grafo)
-    node_farness = {}
-    for node in nodes_sorted:
-        farness = grafo.bfs_cut_farness(node[0])
-        node_farness[node[0]] = farness
-    sorted_nodes = sorted(node_farness.items(), key=lambda x: x[1],reverse=True)
-    return [(id,farness) for id, farness in sorted_nodes[:k]]
-
-def cargar_CSV_closeness(grafo, top_k_cercanias):
-
-    spinner = Spinner("Creando archivo CSV closeness...")
-    spinner.start()
-
-    with open("top_closeness.csv", "w", newline='', encoding="utf-8") as archivo:
-        writter = csv.writer(archivo)
-
-        titulos = ["Posicion", "ID_Nodo", "Nombre_Articulo", "Closeness_Centrality","Categorias"]
-        writter.writerow(titulos)
-
-        for pos, (id, closeness) in enumerate(top_k_cercanias):
-
-            nodo_actual = grafo.get_node(id)
-            nombre_articulo = nodo_actual.get_name()
-            cat_nodo = nodo_actual.get_categories()
-
-            if len(cat_nodo) > 0:
-                texto_cat = ", ".join(cat_nodo)
-            else:
-
-                texto_cat = "sin categoria"
-
-            fila_a_escribir = [pos, id, nombre_articulo, closeness, texto_cat]
-
-            writter.writerow(fila_a_escribir)
-
-    spinner.stop()
-
-grafo = cargar_grafo()
 
             cargar_CSV_pagerank(grafo, top, i, d)
 
@@ -308,37 +348,43 @@ grafo = cargar_grafo()
             cargar_CSV_filtrado_cat(grafo, id)
 
         elif option == 5:
-            grafo.resumen()
+
+            top = int(input("Ingrese los x primeros nodos (0 para todos): "))
+
+            rank = top_k_cercanías(grafo, top)
+
+            cargar_CSV_pagerank(grafo, rank)
 
         elif option == 6:
+            grafo.resumen()
+
+        elif option == 7:
             name1 = input("Introduce el nombre del nodo origen: ")
             name2 = input("Introduce el nombre del nodo destino: ")
 
             camino_corto(grafo, name1, name2)
 
-        elif option == 7:
+        elif option == 8:
             id = int(input("Introduce el id del nodo origen: "))
             grafo.bfs(id, None, True)
 
-        elif option == 8:
+        elif option == 9:
             id = int(input("Introduce el id del nodo origen: "))
             grafo.dfs(id, True)
 
-        elif option == 9:
+        elif option == 10:
             ver_nodos(grafo)
 
-        elif option == 10:
+        elif option == 11:
             ver_cats(grafo)
 
-        elif option == 11:
+        elif option == 12:
             print("Saliendo...")
+
+        elif option == 12:
+            cargar_CSV_closeness(grafo, top_k_cercanías(grafo, 100))
 
         print()
 
 if __name__ == "__main__":
     menu()
-#resumen(grafo)
-#grados(grafo)
-#cargar_CSV_pagerank(grafo, pagerank(grafo, 0))
-
-cargar_CSV_closeness(grafo, top_k_cercanías(grafo, 100))
