@@ -2,8 +2,7 @@ from collections import deque
 from functools import reduce
 from itertools import accumulate
 
-from Node import Node
-import Category
+from src.Node import Node
 
 class Graph:
 

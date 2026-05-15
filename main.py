@@ -1,8 +1,8 @@
 import csv
 from src.WikiLoader import WikiLoader
 from src.Spinner import Spinner
+from src.Graph import Graph
 from collections import Counter
-import time
 import numpy as np
 from numba import njit
 from typing import Tuple
@@ -443,19 +443,21 @@ def cargar_CSV_closeness_centrality(resultados):
 
 def menu():
     print("Taller 01: Prog. Cientifica")
-
+    print("Por Martín Droguett, Francisco Romero y Lucas Munizaga.")
+    print("Fecha: 15-05-2026")
+    print("---------------------")
     grafo = cargar_grafo()
 
     option = 0
 
     print()
 
-    while (option != 11):
+    while (option != 12):
         print("1. Cargar CSVs con informacion de grados de los nodos")
         print("2. Cargar CSV con Pageranks de cada nodo")
         print("3. Cargar CSV con informacion de categorias")
         print("4. Cargar CSV filtrando por categoria")
-        print("5. Cargar CSV closeness")
+        print("5. Cargar CSV closeness (con sample k=100)")
         print("6. Obtener resumen del grafo")
         print("7. Obtener camino mas corto entre dos nodos")
         print("8. Hacer BFS desde un nodo origen")
@@ -488,7 +490,6 @@ def menu():
             cargar_CSV_filtrado_cat(grafo, id)
 
         elif option == 5:
-            k = int(input("Introduce el k de "))
             resultados = calcular_closeness_centrality_rapido(grafo, k=100)
             cargar_CSV_closeness_centrality(resultados)
 
