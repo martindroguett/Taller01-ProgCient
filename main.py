@@ -3,6 +3,7 @@ from src.WikiLoader import WikiLoader
 from src.Spinner import Spinner
 from collections import Counter
 import time
+import math
 
 def cargar_grafo():
     spinner = Spinner("Cargando wikiloader...")
@@ -152,11 +153,15 @@ def cargar_CSV_cat(grafo):
     with open("top_categories.csv", "w", newline='', encoding="utf-8") as archivo:
         writter = csv.writer(archivo)
 
-        titulos = ["Id", "Nombre", "Frecuencia", "PageRank_Score"]
+        titulos = ["Id", "Nombre", "Frecuencia", "PageRank_Score", "Tasa", "Tasa-Log"]
         writter.writerow(titulos)
 
-        for id,cat in sorted(grafo.cats.items(), key = lambda x: x[1].get_pagerank(), reverse=True):
-            writter.writerow([id, cat.get_name(), cat.get_len(), cat.get_pagerank()])
+
+        for id,cat in sorted(grafo.cats.items(), key = lambda x: x[1].get_pagerank()/(x[1].get_len()+1), reverse=True):
+            freq = cat.get_len()
+            pr = cat.get_pagerank()
+            tasa = pr/(freq+1)
+            writter.writerow([id, cat.get_name(), freq, pr, tasa, tasa * math.log(freq+1)])
 
     spinner.stop()
 
@@ -310,7 +315,7 @@ def menu():
 
     print()
 
-    while (option != 11):
+    while (option != 12):
         print("1. Cargar CSVs con informacion de grados de los nodos")
         print("2. Cargar CSV con Pageranks de cada nodo")
         print("3. Cargar CSV con informacion de categorias")
@@ -337,10 +342,14 @@ def menu():
             i = int(input("Iteraciones: "))
             d = float(input("Factor de amortiguación: "))
 
-            cargar_CSV_pagerank(grafo, top, i, d)
+            puntajes = pagerank(grafo, top, i, d)
+            cargar_CSV_pagerank(grafo, puntajes)
 
         elif option == 3:
-            cargar_CSV_cat(grafo)
+
+            x = input("Atencion: Debe haberse seleccionado la opcion 2 antes (\"Si\" si lo hizo): ").lower()
+            if (x == "si"):
+                cargar_CSV_cat(grafo)
 
         elif option == 4:
 
@@ -359,8 +368,8 @@ def menu():
             grafo.resumen()
 
         elif option == 7:
-            name1 = input("Introduce el nombre del nodo origen: ")
-            name2 = input("Introduce el nombre del nodo destino: ")
+            name1 = input("Introduce el nombre del nodo origen: ") #Karl Marx
+            name2 = input("Introduce el nombre del nodo destino: ") #Isabel Allende (politician)
 
             camino_corto(grafo, name1, name2)
 

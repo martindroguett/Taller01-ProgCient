@@ -2,8 +2,8 @@ from collections import deque
 from functools import reduce
 from itertools import accumulate
 
-from Node import Node
-import Category
+from src.Node import Node
+from src.Category import Category
 
 class Graph:
 
@@ -13,15 +13,33 @@ class Graph:
         self.cats = { } #id_cat: cat
 
     def get_node(self, id):
+        """
+        Busca un nodo en el diccionario del grafo, si no existe lo crea.
+        :param id (int): id del nodo.
+        :return: El nodo con el id.
+        """
+
         if id not in self.nodes_id:
             self.nodes_id[id] = Node(id)
 
         return self.nodes_id[id]
 
     def get_cat(self, id):
+        """
+        Buscar una categoría en el diccionario del grafo.
+        :param id (int): id de la categoría.
+        :return: La categoría con el id si es que existe, de lo contrario None.
+        """
+
         return self.cats.get(id, None)
 
     def get_ids_by_name(self, name):
+        """
+        Busca tod
+        :param name:
+        :return:
+        """
+
         return self.names_id.get(name, set())
 
     def get_nodes(self):

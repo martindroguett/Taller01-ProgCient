@@ -1,5 +1,5 @@
 .idea/
 **/Data/
-**/dataset/
+dataset/
 dataset/
 .DS_Store

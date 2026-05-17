@@ -1,7 +1,7 @@
 from pathlib import Path
 
-from Graph import Graph
-from Category import Category
+from src.Graph import Graph
+from src.Category import Category
 
 class WikiLoader:
     def __init__(self):

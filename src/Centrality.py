@@ -1,362 +1,219 @@
-"""
-Closeness Centrality para Grafos Dirigidos
-Basado en: "Computing Classic Closeness Centrality, at Scale"
-Cohen, Delling, Pajor, Werneck — COSN'14
+import numpy as np
+from numba import njit
+from typing import Tuple, Optional
+import time
 
-Implementa el Algorithm 4 del paper:
-  - Estima la centralidad de cercanía OUTBOUND para cada nodo v:
-      B_out(v) = R_out(v) / S_out(v)
-    donde S_out(v) = suma de distancias a nodos alcanzables desde v
-          R_out(v) = cardinalidad del conjunto alcanzable desde v
-
-  - Y la centralidad INBOUND (ejecutando el mismo algoritmo sobre G^T):
-      B_in(v)  = R_in(v) / S_in(v)
-
-Complejidad: O(k * (V + E) * log V)  — comparable a k Dijkstras completos.
-
-Estructura esperada del grafo:
-    grafo: dict[str, Nodo]
-    class Nodo:
-        id             : str
-        nombre         : str
-        lista_categorias: list
-        lista_entradas : list[str]   # IDs de nodos que apuntan HACIA este nodo
-        lista_salidas  : list[str]   # IDs de nodos a los que este nodo apunta
-"""
-
-import heapq
-import random
-from dataclasses import dataclass, field
-from typing import Optional
-
+# Asumiendo que Graph y WikiLoader están en tus archivos locales
 from WikiLoader import WikiLoader
-
-
-# ─────────────────────────────────────────────
-# Clase Nodo de ejemplo (ajusta a la tuya)
-# ─────────────────────────────────────────────
-@dataclass
-class Nodo:
-    id: str
-    nombre: str
-    lista_categorias: list = field(default_factory=list)
-    lista_entradas: list = field(default_factory=list)   # predecesores
-    lista_salidas: list = field(default_factory=list)    # sucesores
-
+from Graph import Graph
 
 # ─────────────────────────────────────────────
-# Dijkstra con poda (pruned Dijkstra)
+# 1. Compilación del Grafo a Arreglos CSR
 # ─────────────────────────────────────────────
-def dijkstra_pruned(
-    source_id: str,
-    grafo: dict,
-    neighbors_fn,          # función (nodo_id) -> lista de (vecino_id, peso)
-    count: dict,
-    k: int,
-    distsum: dict,
-    count_visits: dict,
-    T: dict,
-    t: int,
-    marked: set,
-) -> None:
-    """
-    Dijkstra podado desde source_id sobre el grafo indicado por neighbors_fn.
-    Acumula en count[], distsum[] y T[] según el Algorithm 4 del paper.
+def compilar_grafo_numpy(grafo: Graph) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, list, dict]:
+    print("[1/4] Convirtiendo diccionario de grafo a matrices CSR...")
+    diccionario_grafo = grafo.get_nodes()
+    n = len(diccionario_grafo)
+    
+    id_to_idx = {nid: i for i, nid in enumerate(diccionario_grafo.keys())}
+    nombres = [""] * n
 
-    Parámetros
-    ----------
-    source_id    : nodo origen de esta búsqueda
-    grafo        : dict[id, Nodo]
-    neighbors_fn : (nodo_id) -> list[(vecino_id, peso)]
-    count        : dict[id] -> int   — cuántos nodos del sample alcanzaron v
-    k            : tamaño del sample (límite de poda)
-    distsum      : dict[id] -> float — suma acumulada de distancias
-    count_visits : dict[id] -> int   — alias de count (mismo objeto)
-    T            : dict[id] -> int   — índice t en que count[v] llegó a k
-    t            : índice de iteración actual (orden del nodo source)
-    marked       : set de nodos ya procesados como source
-    """
-    dist = {source_id: 0.0}
-    heap = [(0.0, source_id)]
+    out_deg = np.zeros(n, dtype=np.int32)
+    in_deg  = np.zeros(n, dtype=np.int32)
 
-    while heap:
-        d, u = heapq.heappop(heap)
-        if d > dist.get(u, float("inf")):
-            continue
+    for nid, nodo in diccionario_grafo.items():
+        u = id_to_idx[nid]
+        nombres[u] = nodo.get_name()
+        for out_id in nodo.get_outcome():
+            if out_id in id_to_idx: out_deg[u] += 1
+        for in_id in nodo.get_income():
+            if in_id in id_to_idx: in_deg[u] += 1
 
-        if u == source_id:
-            pass  # el nodo origen no se cuenta a sí mismo
-        else:
-            # Poda: si v ya tiene k nodos en su sample, no lo exploramos más
+    out_indptr = np.zeros(n + 1, dtype=np.int32)
+    in_indptr  = np.zeros(n + 1, dtype=np.int32)
+    out_indptr[1:] = np.cumsum(out_deg)
+    in_indptr[1:]  = np.cumsum(in_deg)
+
+    out_indices = np.empty(out_indptr[-1], dtype=np.int32)
+    in_indices  = np.empty(in_indptr[-1],  dtype=np.int32)
+
+    out_cursor = out_indptr[:-1].copy()
+    in_cursor  = in_indptr[:-1].copy()
+
+    for nid, nodo in diccionario_grafo.items():
+        u = id_to_idx[nid]
+        for out_id in nodo.get_outcome():
+            if out_id in id_to_idx:
+                out_indices[out_cursor[u]] = id_to_idx[out_id]
+                out_cursor[u] += 1
+        for in_id in nodo.get_income():
+            if in_id in id_to_idx:
+                in_indices[in_cursor[u]] = id_to_idx[in_id]
+                in_cursor[u] += 1
+
+    return out_indptr, out_indices, in_indptr, in_indices, nombres, id_to_idx
+
+# ─────────────────────────────────────────────
+# 2. BFS Podado (Compilado en C con Numba)
+# ─────────────────────────────────────────────
+@njit
+def bfs_pruned_numba(
+    source: int, indptr: np.ndarray, indices: np.ndarray,
+    count: np.ndarray, distsum: np.ndarray, T: np.ndarray, marked: np.ndarray,
+    dist_buf: np.ndarray, queue_buf: np.ndarray, visited_buf: np.ndarray,
+    k: int, t: int
+):
+    """Búsqueda en anchura ultrarrápida compilada a código máquina."""
+    head = 0
+    tail = 0
+
+    # Inicializar origen
+    dist_buf[source] = 0.0
+    queue_buf[tail] = source
+    tail += 1
+
+    visited_buf[0] = source
+    visited_count = 1
+
+    while head < tail:
+        u = queue_buf[head]
+        head += 1
+        d = dist_buf[u]
+
+        if u != source:
             if count[u] >= k:
                 continue
 
-            # Acumulamos
             distsum[u] += d
             count[u] += 1
 
             if count[u] == k:
                 T[u] = t
-                if u in marked:          # ya fue source → ajuste del paper
+                if marked[u]:
                     T[u] = t - 1
 
-        if u not in grafo:
-            continue
+        start = indptr[u]
+        end = indptr[u + 1]
 
-        for v_id, w in neighbors_fn(u):
-            new_d = d + w
-            if new_d < dist.get(v_id, float("inf")):
-                # Poda anticipada: si v ya tiene k muestras, ignoramos
-                if count.get(v_id, 0) >= k:
-                    continue
-                dist[v_id] = new_d
-                heapq.heappush(heap, (new_d, v_id))
+        for i in range(start, end):
+            v = indices[i]
 
+            if count[v] >= k:
+                continue
 
-# ─────────────────────────────────────────────
-# Funciones de vecindad
-# ─────────────────────────────────────────────
-def sucesores(nodo_id: str, grafo: dict, peso: float = 1.0):
-    """Vecinos en el grafo original (aristas de salida)."""
-    nodo = grafo.get(nodo_id)
-    if nodo is None:
-        return []
-    return [(v_id, peso) for v_id in nodo.get_outcome() if v_id in grafo]
+            new_d = d + 1.0
+            if new_d < dist_buf[v]:
+                dist_buf[v] = new_d
+                queue_buf[tail] = v
+                tail += 1
+                
+                visited_buf[visited_count] = v
+                visited_count += 1
 
-
-def predecesores(nodo_id: str, grafo: dict, peso: float = 1.0):
-    """Vecinos en el grafo transpuesto G^T (aristas de entrada)."""
-    nodo = grafo.get(nodo_id)
-    if nodo is None:
-        return []
-    return [(v_id, peso) for v_id in nodo.get_income() if v_id in grafo]
-
+    # Resetear el buffer de distancias solo para los visitados (O(visitados))
+    for i in range(visited_count):
+        dist_buf[visited_buf[i]] = np.inf
 
 # ─────────────────────────────────────────────
-# Estimador de centralidad de cercanía (Algorithm 4)
+# 3. Bucle Principal de Estimación (También en Numba)
 # ─────────────────────────────────────────────
-def estimar_centralidad(
-    grafo: dict,
-    k: int = 100,
-    direccion: str = "outbound",   # "outbound" | "inbound"
-    semilla: Optional[int] = None,
-    peso_arista: float = 1.0,
-) -> dict:
-    """
-    Estima la centralidad de cercanía (outbound o inbound) para todos los nodos
-    usando el Algorithm 4 de Cohen et al. 2014.
+@njit
+def estimar_centralidad_core(n: int, indptr: np.ndarray, indices: np.ndarray, orden: np.ndarray, k: int):
+    """Ejecuta el BFS sobre los k nodos de muestra seleccionados."""
+    count   = np.zeros(n, dtype=np.int32)
+    distsum = np.zeros(n, dtype=np.float64)
+    T       = np.zeros(n, dtype=np.int32)
+    marked  = np.zeros(n, dtype=np.bool_)
 
-    Retorna
-    -------
-    dict[nodo_id] -> {
-        "centralidad": float,   # B(v) = R(v) / S(v), o 0 si no alcanza nada
-        "alcanzables": float,   # R_hat(v): cardinalidad estimada del conjunto alcanzable
-        "distancia_media": float,  # S(v)/R(v) = 1/B(v)
-        "muestras": int,        # cuántos nodos del sample alcanzaron v
-    }
-    """
-    if semilla is not None:
-        random.seed(semilla)
+    # Buffers pre-alojados para no reasignar memoria en cada BFS
+    dist_buf    = np.full(n, np.inf, dtype=np.float64)
+    queue_buf   = np.zeros(n, dtype=np.int32)
+    visited_buf = np.zeros(n, dtype=np.int32)
 
-    ids = list(grafo.keys())
-    n = len(ids)
-
-    if direccion == "outbound":
-        # Corremos Dijkstra desde u sobre G^T (predecesores)
-        # → estima quién puede llegar a v (inbound reach de v)
-        # Paper Algorithm 4: "Perform pruned Dijkstra from u on G^T"
-        # Esto acumula en distsum[v] la distancia dvu (de v a u) en G original.
-        neighbors_fn = lambda nid: predecesores(nid, grafo, peso_arista)
-    else:  # inbound
-        # Corremos Dijkstra desde u sobre G (sucesores)
-        neighbors_fn = lambda nid: sucesores(nid, grafo, peso_arista)
-
-    # Inicialización
-    count    = {nid: 0   for nid in ids}
-    distsum  = {nid: 0.0 for nid in ids}
-    T        = {nid: 0   for nid in ids}
-    marked   = set()
-
-    # Orden aleatorio de nodos (permutación uniforme)
-    orden = ids[:]
-    random.shuffle(orden)
-
-    for t, u_id in enumerate(orden, start=1):
-        marked.add(u_id)
-        dijkstra_pruned(
-            source_id=u_id,
-            grafo=grafo,
-            neighbors_fn=neighbors_fn,
-            count=count,
-            k=k,
-            distsum=distsum,
-            count_visits=count,
-            T=T,
-            t=t,
-            marked=marked,
+    for t_idx, u in enumerate(orden):
+        marked[u] = True
+        bfs_pruned_numba(
+            u, indptr, indices,
+            count, distsum, T, marked,
+            dist_buf, queue_buf, visited_buf,
+            k, t_idx + 1
         )
 
-    # ── Construir resultados ──────────────────────────────────────────────
+    return count, distsum, T
+
+def estimar_centralidad(n: int, indptr: np.ndarray, indices: np.ndarray, k: int, semilla: int = 42):
+    np.random.seed(semilla)
+    # Permutar Nodos para el muestreo aleatorio
+    orden = np.random.permutation(n)
+    
+    # Llamar al core compilado
+    count, distsum, T = estimar_centralidad_core(n, indptr, indices, orden, k)
+
+    # Cálculos vectorizados finales (Vectorización rápida de NumPy)
+    with np.errstate(divide='ignore', invalid='ignore'):
+        dist_media = np.where(count > 0, distsum / count, np.inf)
+        r_hat = np.empty(n, dtype=np.float64)
+
+        mask_exact = count < k
+        mask_estimado = ~mask_exact
+
+        r_hat[mask_exact] = count[mask_exact].astype(np.float64)
+
+        if mask_estimado.any():
+            T_est = T[mask_estimado].astype(np.int64)
+            denom = T_est - 1
+            r_hat_est = np.where(denom > 0, 1.0 + (k - 1) * (n - 2) / denom, float(n - 1))
+            r_hat[mask_estimado] = r_hat_est
+
+        centralidad = np.where((dist_media > 0) & np.isfinite(dist_media), 1.0 / dist_media, 0.0)
+
+    return centralidad, r_hat, dist_media, count
+
+# ─────────────────────────────────────────────
+# 4. Orquestador
+# ─────────────────────────────────────────────
+def calcular_closeness_centrality_rapido(grafo: Graph, k: int = 100):
+    n = grafo.count_nodes()
+    
+    out_indptr, out_indices, in_indptr, in_indices, nombres, id_to_idx = compilar_grafo_numpy(grafo)
+
+    print(f"[2/4] Calculando Centralidad OUTBOUND (Numba JIT)...")
+    start_time = time.time()
+    out_c, out_r, out_d, out_m = estimar_centralidad(n, in_indptr, in_indices, k)
+    print(f"      Outbound terminado en {time.time() - start_time:.2f} segundos.")
+
+    print(f"[3/4] Calculando Centralidad INBOUND (Numba JIT)...")
+    start_time = time.time()
+    in_c, in_r, in_d, in_m = estimar_centralidad(n, out_indptr, out_indices, k)
+    print(f"      Inbound terminado en {time.time() - start_time:.2f} segundos.")
+
+    print("[4/4] Empaquetando resultados...")
     resultados = {}
-    for nid in ids:
-        c = count[nid]
-        s = distsum[nid]
-
-        if c == 0:
-            # Nodo aislado (nadie lo alcanza / no alcanza a nadie)
-            resultados[nid] = {
-                "centralidad": 0.0,
-                "alcanzables": 0.0,
-                "distancia_media": float("inf"),
-                "muestras": 0,
-            }
-            continue
-
-        # Estimación de cardinalidad |R(v)|  (ecuación del paper)
-        if c < k:
-            r_hat = float(c)          # conteo exacto (alcanzó menos de k)
-        else:
-            # R_hat(v) = 1 + (k-1)(n-2) / (T[v] - 1)
-            denom = T[nid] - 1
-            if denom <= 0:
-                r_hat = float(n - 1)
-            else:
-                r_hat = 1.0 + (k - 1) * (n - 2) / denom
-
-        # Distancia media estimada
-        dist_media = s / c            # promedio sobre las c muestras
-
-        # B(v) = R(v) / S(v)  →  aproximado como  r_hat / (dist_media * r_hat)
-        #      = 1 / dist_media
-        # (la centralidad clásica de Bavelas es el inverso de la dist. media)
-        centralidad = (1.0 / dist_media) if dist_media > 0 else 0.0
-
+    for nid, i in id_to_idx.items():
         resultados[nid] = {
-            "centralidad": centralidad,
-            "alcanzables": r_hat,
-            "distancia_media": dist_media,
-            "muestras": c,
+            "nombre": nombres[i],
+            "outbound": {"centralidad": float(out_c[i]), "alcanzables": float(out_r[i])},
+            "inbound": {"centralidad": float(in_c[i]), "alcanzables": float(in_r[i])},
         }
-
     return resultados
 
-
 # ─────────────────────────────────────────────
-# Función principal (outbound + inbound)
-# ─────────────────────────────────────────────
-def calcular_closeness_centrality(
-    grafo,
-    k: int = 100,
-    semilla: Optional[int] = None,
-) -> dict:
-    """
-    Calcula centralidad de cercanía outbound e inbound para grafos dirigidos.
-
-    Parámetros
-    ----------
-    grafo   : dict[id, Nodo]
-    k       : tamaño del sample (más alto = más preciso, más lento)
-              Recomendado: k=100 para grafos grandes, k=50 para pruebas rápidas.
-    semilla : semilla aleatoria para reproducibilidad
-
-    Retorna
-    -------
-    dict[nodo_id] -> {
-        "outbound": { centralidad, alcanzables, distancia_media, muestras },
-        "inbound":  { centralidad, alcanzables, distancia_media, muestras },
-        "nombre":   str,
-    }
-    """
-    print(f"[closeness] Grafo: {grafo.count_nodes()} nodos | k={k}")
-
-    print("[closeness] Calculando centralidad OUTBOUND...")
-    out = estimar_centralidad(grafo.nodes_id, k=k, direccion="outbound", semilla=semilla)
-
-    print("[closeness] Calculando centralidad INBOUND...")
-    inn = estimar_centralidad(grafo.nodes_id, k=k, direccion="inbound", semilla=semilla)
-
-    resultados = {}
-    for nid, nodo in grafo.nodes_id.items():
-        resultados[nid] = {
-            "nombre": nodo.get_name(),
-            "outbound": out[nid],
-            "inbound":  inn[nid],
-        }
-
-    return resultados
-
-
-# ─────────────────────────────────────────────
-# Utilidades de presentación
-# ─────────────────────────────────────────────
-def top_nodos(resultados: dict, n: int = 10, metrica: str = "outbound") -> list:
-    """
-    Retorna los n nodos con mayor centralidad según 'outbound' o 'inbound'.
-
-    Retorna lista de (nodo_id, nombre, centralidad) ordenada descendentemente.
-    """
-    ranking = [
-        (nid, r["nombre"], r[metrica]["centralidad"])
-        for nid, r in resultados.items()
-    ]
-    ranking.sort(key=lambda x: x[2], reverse=True)
-    return ranking[:n]
-
-
-def imprimir_ranking(resultados: dict, n: int = 10) -> None:
-    print("\n" + "═" * 60)
-    print(f"  TOP {n} — CENTRALIDAD OUTBOUND")
-    print("═" * 60)
-    for i, (nid, nombre, c) in enumerate(top_nodos(resultados, n, "outbound"), 1):
-        print(f"  {i}. [{nid}] {nombre} {c}")
-
-    print("\n" + "═" * 60)
-    print(f"  TOP {n} — CENTRALIDAD INBOUND")
-    print("═" * 60)
-    for i, (nid, nombre, c) in enumerate(top_nodos(resultados, n, "inbound"), 1):
-        print(f"  {i}. [{nid}] {nombre} {c}")
-    print("═" * 60 + "\n")
-
-
-# ─────────────────────────────────────────────
-# Demo rápida con grafo de ejemplo
+# Ejecución Principal
 # ─────────────────────────────────────────────
 if __name__ == "__main__":
-    # datos = {
-    #     "A": ("Nodo Alpha",   [],         ["B", "C"]),
-    #     "B": ("Nodo Beta",    ["A"],      ["D", "E"]),
-    #     "C": ("Nodo Gamma",   ["A"],      ["E"]),
-    #     "D": ("Nodo Delta",   ["B"],      ["F", "E"]),
-    #     "E": ("Nodo Epsilon", ["B","C","D"], ["F"]),
-    #     "F": ("Nodo Zeta",    ["D","E"],  []),
-    # }
-    # grafo: dict[str, Nodo] = {}
-    # for nid, (nombre, entradas, salidas) in datos.items():
-    #     grafo[nid] = Nodo(
-    #         id=nid,
-    #         nombre=nombre,
-    #         lista_categorias=["demo"],
-    #         lista_entradas=entradas,
-    #         lista_salidas=salidas,
-    #     )
     fileLoader = WikiLoader()
+    
+    print("Cargando grafo desde dataset...")
+    t0 = time.time()
     grafo = fileLoader.cargar_grafo()
-    # ── Ejecutar algoritmo ────────────────────────────────────────────────
-    # k=6 aquí (grafo pequeño). En grafos grandes usa k=100.
-    resultados = calcular_closeness_centrality(grafo, k=100, semilla=42)
+    print(f"Grafo cargado en {time.time() - t0:.2f} segundos. Nodos: {grafo.count_nodes()}, Aristas: {grafo.count_edges()}")
 
-    # ── Imprimir detalles ─────────────────────────────────────────────────
-    print("\nDetalle por nodo:")
-    print(f"{'ID':<4} {'Nombre':<15} {'CC-out':>10} {'CC-in':>10} "
-          f"{'Alc-out':>10} {'Alc-in':>10}")
-    print("-" * 65)
-    for nid, r in resultados.items():
-        print(
-            f"{nid:<4} {r['nombre']} "
-            f"{r['outbound']['centralidad']} "
-            f"{r['inbound']['centralidad']} "
-            f"{r['outbound']['alcanzables']} "
-            f"{r['inbound']['alcanzables']}"
-        )
-
-    imprimir_ranking(resultados, n=6)
+    # k=100 es ideal para equilibrar precisión y tiempo en 1.8M nodos
+    resultados = calcular_closeness_centrality_rapido(grafo, k=100)
+    
+    # Imprimir un Top 5 rápido
+    ranking = sorted(resultados.items(), key=lambda x: x[1]['outbound']['centralidad'], reverse=True)
+    
+    print("\n🏆 TOP 5 Nodos (Outbound Closeness):")
+    for nid, r in ranking[:5]:
+        print(f"[{nid}] {r['nombre']}: {r['outbound']['centralidad']:.6f}")
