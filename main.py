@@ -4,6 +4,9 @@ from src.Spinner import Spinner
 from collections import Counter
 import time
 import math
+import numpy as np
+from numba import njit
+from typing import Tuple
 
 def cargar_grafo():
     spinner = Spinner("Cargando wikiloader...")
@@ -225,55 +228,128 @@ def obtener_nodos_ordenados_por_grado(grafo):
         datos.append((id, nodo.get_outcome_len()))
     return sorted(datos, key=lambda n: n[1], reverse=True)
 
-def top_k_cercanías(grafo, k):
-    """
-    Computes Top-K nodes based on closeness centrality using cut.
-    """
-    # Sort nodes by degree to improve pruning efficiency
+def compilar_grafo_numpy(grafo: Graph) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, list, dict]:
+    print("[1/4] Convirtiendo diccionario de grafo a matrices CSR...")
+    diccionario_grafo = grafo.get_nodes()
+    n = len(diccionario_grafo)
 
-    spinner = Spinner("Cargando cercanias...")
-    spinner.start()
+    id_to_idx = {nid: i for i, nid in enumerate(diccionario_grafo.keys())}
+    nombres = [""] * n
 
-    print("Ordenando nodos por grado...")
+    out_deg = np.zeros(n, dtype=np.int32)
+    in_deg  = np.zeros(n, dtype=np.int32)
 
-    nodes_sorted = obtener_nodos_ordenados_por_grado(grafo)
-    node_farness = []
+    for nid, nodo in diccionario_grafo.items():
+        u = id_to_idx[nid]
+        nombres[u] = nodo.get_name()
+        for out_id in nodo.get_outcome():
+            if out_id in id_to_idx: out_deg[u] += 1
+        for in_id in nodo.get_income():
+            if in_id in id_to_idx: in_deg[u] += 1
 
-    threshold = float('inf')
-    total_nodos = len(nodes_sorted)
+    out_indptr = np.zeros(n + 1, dtype=np.int32)
+    in_indptr  = np.zeros(n + 1, dtype=np.int32)
+    out_indptr[1:] = np.cumsum(out_deg)
+    in_indptr[1:]  = np.cumsum(in_deg)
 
-    print(f"Iniciando cálculo para {total_nodos} nodos con K={k}...")
+    out_indices = np.empty(out_indptr[-1], dtype=np.int32)
+    in_indices  = np.empty(in_indptr[-1],  dtype=np.int32)
 
-    start_time_global = time.time()
+    out_cursor = out_indptr[:-1].copy()
+    in_cursor  = in_indptr[:-1].copy()
 
-    for i, (node_id, grado) in enumerate(nodes_sorted):
+    for nid, nodo in diccionario_grafo.items():
+        u = id_to_idx[nid]
+        for out_id in nodo.get_outcome():
+            if out_id in id_to_idx:
+                out_indices[out_cursor[u]] = id_to_idx[out_id]
+                out_cursor[u] += 1
+        for in_id in nodo.get_income():
+            if in_id in id_to_idx:
+                in_indices[in_cursor[u]] = id_to_idx[in_id]
+                in_cursor[u] += 1
 
-        start_node_time = time.time()
+    return out_indptr, out_indices, in_indptr, in_indices, nombres, id_to_idx
 
-        farness = grafo.bfs_cut_farness(node_id, threshold)
+@njit
+def bfs_pruned_numba(
+    source: int, indptr: np.ndarray, indices: np.ndarray,
+    count: np.ndarray, distsum: np.ndarray, T: np.ndarray, marked: np.ndarray,
+    dist_buf: np.ndarray, queue_buf: np.ndarray, visited_buf: np.ndarray,
+    k: int, t: int
+):
+    """Búsqueda en anchura ultrarrápida compilada a código máquina."""
+    head = 0
+    tail = 0
 
-        end_node_time = time.time()
 
-        if farness != float('inf'):
+    dist_buf[source] = 0.0
+    queue_buf[tail] = source
+    tail += 1
 
-            node_farness.append((farness, node_id))
+    visited_buf[0] = source
+    visited_count = 1
 
-            node_farness.sort(key=lambda x: x[0])
+    while head < tail:
+        u = queue_buf[head]
+        head += 1
+        d = dist_buf[u]
 
-            if len(node_farness) > k:
-                node_farness.pop()
+        if u != source:
+            if count[u] >= k:
+                continue
 
-            if len(node_farness) == k:
-                threshold = node_farness[-1][0]
+            distsum[u] += d
+            count[u] += 1
 
-        if i <= k or i % 10000 == 0:
-            tiempo_nodo = end_node_time - start_node_time
-            tiempo_total = (time.time() - start_time_global) / 60
-            print(f"[{i + 1}/{total_nodos}] Nodo {node_id} procesado en {tiempo_nodo:.4f}s | Threshold: {threshold} | Tiempo total: {tiempo_total:.2f} min")
+            if count[u] == k:
+                T[u] = t
+                if marked[u]:
+                    T[u] = t - 1
 
-    spinner.stop()
+        start = indptr[u]
+        end = indptr[u + 1]
 
-    return [(id,farness) for farness, id in node_farness]
+        for i in range(start, end):
+            v = indices[i]
+
+            if count[v] >= k:
+                continue
+
+            new_d = d + 1.0
+            if new_d < dist_buf[v]:
+                dist_buf[v] = new_d
+                queue_buf[tail] = v
+                tail += 1
+
+                visited_buf[visited_count] = v
+                visited_count += 1
+
+    for i in range(visited_count):
+        dist_buf[visited_buf[i]] = np.inf
+
+@njit
+def estimar_centralidad_core(n: int, indptr: np.ndarray, indices: np.ndarray, orden: np.ndarray, k: int):
+    """Ejecuta el BFS sobre los k nodos de muestra seleccionados."""
+    count   = np.zeros(n, dtype=np.int32)
+    distsum = np.zeros(n, dtype=np.float64)
+    T       = np.zeros(n, dtype=np.int32)
+    marked  = np.zeros(n, dtype=np.bool_)
+
+    dist_buf    = np.full(n, np.inf, dtype=np.float64)
+    queue_buf   = np.zeros(n, dtype=np.int32)
+    visited_buf = np.zeros(n, dtype=np.int32)
+
+    for t_idx, u in enumerate(orden):
+        marked[u] = True
+        bfs_pruned_numba(
+            u, indptr, indices,
+            count, distsum, T, marked,
+            dist_buf, queue_buf, visited_buf,
+            k, t_idx + 1
+        )
+
+    return count, distsum, T
 
 def cargar_CSV_closeness(grafo, top_k_cercanias):
 
@@ -306,9 +382,75 @@ def cargar_CSV_closeness(grafo, top_k_cercanias):
 
     spinner.stop()
 
+def estimar_centralidad(n: int, indptr: np.ndarray, indices: np.ndarray, k: int, semilla: int = 42):
+    np.random.seed(semilla)
+    orden = np.random.permutation(n)
+
+    count, distsum, T = estimar_centralidad_core(n, indptr, indices, orden, k)
+
+    with np.errstate(divide='ignore', invalid='ignore'):
+        dist_media = np.where(count > 0, distsum / count, np.inf)
+        r_hat = np.empty(n, dtype=np.float64)
+
+        mask_exact = count < k
+        mask_estimado = ~mask_exact
+
+        r_hat[mask_exact] = count[mask_exact].astype(np.float64)
+
+        if mask_estimado.any():
+            T_est = T[mask_estimado].astype(np.int64)
+            denom = T_est - 1
+            r_hat_est = np.where(denom > 0, 1.0 + (k - 1) * (n - 2) / denom, float(n - 1))
+            r_hat[mask_estimado] = r_hat_est
+
+        centralidad = np.where((dist_media > 0) & np.isfinite(dist_media), 1.0 / dist_media, 0.0)
+
+    return centralidad, r_hat, dist_media, count
+
+def calcular_closeness_centrality_rapido(grafo, k):
+
+    n = grafo.count_nodes()
+    out_indptr, out_indices, in_indptr, in_indices, nombres, id_to_idx = compilar_grafo_numpy(grafo)
+
+    print(f"[2/4] Calculando Centralidad SALIDA...")
+    out_c, out_r, out_d, out_m = estimar_centralidad(n, in_indptr, in_indices, k)
+
+    print(f"[3/4] Calculando Centralidad ENTRADA...")
+    in_c, in_r, in_d, in_m = estimar_centralidad(n, out_indptr, out_indices, k)
+
+    print("[4/4] Creando CSV...")
+    resultados = {}
+    for nid, i in id_to_idx.items():
+        resultados[nid] = {
+            "nombre": nombres[i],
+            "outbound": {"centralidad": float(out_c[i]), "alcanzables": float(out_r[i])},
+            "inbound": {"centralidad": float(in_c[i]), "alcanzables": float(in_r[i])},
+        }
+    return resultados
+
+def cargar_CSV_closeness_centrality(resultados):
+    ranking = sorted(resultados.items(), key=lambda x: x[1]['outbound']['centralidad'], reverse=True)
+    spinner = Spinner("Cargando grados...")
+    spinner.start()
+
+    with open("top_closeness.csv", "w", newline='', encoding="utf-8") as salida:
+
+        writter_closeness = csv.writer(salida)
+
+        titulos_salida = ["Id", "Nombre", "Grado_Salida"]
+
+        writter_closeness.writerow(titulos_salida)
+
+        for nid, r in ranking:
+            writter_closeness.writerow([nid, r['nombre'],r['outbound']['centralidad'] ])
+
+    spinner.stop()
+
 def menu():
     print("Taller 01: Prog. Cientifica")
-
+    print("Por Martín Droguett, Francisco Romero y Lucas Munizaga.")
+    print("Fecha: 15-05-2026")
+    print("---------------------")
     grafo = cargar_grafo()
 
     option = 0
@@ -320,7 +462,7 @@ def menu():
         print("2. Cargar CSV con Pageranks de cada nodo")
         print("3. Cargar CSV con informacion de categorias")
         print("4. Cargar CSV filtrando por categoria")
-        print("5. Cargar CSV farness")
+        print("5. Cargar CSV closeness (con sample k=100)")
         print("6. Obtener resumen del grafo")
         print("7. Obtener camino mas corto entre dos nodos")
         print("8. Hacer BFS desde un nodo origen")
@@ -357,12 +499,8 @@ def menu():
             cargar_CSV_filtrado_cat(grafo, id)
 
         elif option == 5:
-
-            top = int(input("Ingrese los x primeros nodos (0 para todos): "))
-
-            rank = top_k_cercanías(grafo, top)
-
-            cargar_CSV_pagerank(grafo, rank)
+            resultados = calcular_closeness_centrality_rapido(grafo, k=100)
+            cargar_CSV_closeness_centrality(resultados)
 
         elif option == 6:
             grafo.resumen()
@@ -390,8 +528,8 @@ def menu():
         elif option == 12:
             print("Saliendo...")
 
-        elif option == 12:
-            cargar_CSV_closeness(grafo, top_k_cercanías(grafo, 100))
+        else:
+            print("--Opción inválida--")
 
         print()
 
