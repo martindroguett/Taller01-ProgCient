@@ -1,5 +1,6 @@
 from src.Logic.WikiLoader import WikiLoader
 from src.Spinner import Spinner
+import os
 
 from src.Logic import CSVWritters as csv, Algorithms as alg
 
@@ -216,6 +217,7 @@ def menu(grafo):
 
 
 if __name__ == "__main__":
+    os.makedirs("results", exist_ok=True)
 
     spinner = Spinner("Cargando grafo...")
 
