@@ -126,6 +126,7 @@ def menu(grafo):
     print()
 
     while (option != 12):
+        print("=== Menu principal ===")
         print("1. Cargar CSVs con informacion de grados de los nodos")
         print("2. Cargar CSV con PageRanks de cada nodo")
         print("3. Cargar CSV con informacion de categorias")

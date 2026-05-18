@@ -66,6 +66,10 @@ Taller01-ProgCient
     ├── Spinner.py
     └── __init__.py
 ```
+
+## Menú Principal
+<img src=https://raw.githubusercontent.com/martindroguett/Taller01-ProgCient/main/imgs/Menu.png alt="Menu" width = 80% heigth = 80% align="center" >
+
 ## Integrantes
 <table>
   <tr>
