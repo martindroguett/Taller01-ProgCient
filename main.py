@@ -115,7 +115,6 @@ def menu(grafo):
 
     print("Taller 01: Prog. Científica")
     print("Por Martín Droguett, Lucas Munizaga y Francisco Romero.")
-    print("Fecha: 15-05-2026")
     print("---------------------")
 
     option = 0
