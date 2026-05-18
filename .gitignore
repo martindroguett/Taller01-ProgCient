@@ -1,5 +1,7 @@
 .idea/
 **/Data/
+dataset/
 __pycache__/
+results/
 *.pyc
 .DS_Store
