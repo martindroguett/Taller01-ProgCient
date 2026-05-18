@@ -47,7 +47,7 @@ class Spinner:
         while not self.stopped:
             sys.stdout.write(f'\r{self.msg} {next(chars)}')
             sys.stdout.flush()
-            time.sleep(0.1)
+            time.sleep(0.2)
 
         sys.stdout.write(f'\r{self.msg} Listo!\n')
         sys.stdout.flush()
