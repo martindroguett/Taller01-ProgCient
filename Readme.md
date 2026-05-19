@@ -11,7 +11,7 @@
 El presente repositorio consiste en la implementación de un programa capaz de analizar los datos ofrecidos por Stanford Network Analysis Project ([SNAP](https://snap.stanford.edu/data/wiki-topcats.html)) y recopilados en [Kaggle](https://www.kaggle.com/datasets/wolfram77/graphs-snap-wiki), los cuales ofrecen información de la red de artículos de Wikipedia y sus conexiones a través de sus hipervínculos, además de las categorías a las que estos pertenecen. 
 
 
-El objetivo principal del proyecto es construir un grafo dirigido con que permita extraer información de los artículos con la finalidad de encontrar patrones en la red, implementar un algoritmo de [PageRank](https://en.wikipedia.org/wiki/PageRank), y generar rankings y gráficos basándonos en distintas métricas como: **grafos de salida/entrada**, **centralidad y cercanía**, o **cardinalidad**.
+El objetivo principal del proyecto es construir un grafo dirigido que permita extraer información de los artículos con la finalidad de encontrar patrones en la red, implementar un algoritmo de [PageRank](https://en.wikipedia.org/wiki/PageRank), y generar rankings y gráficos basándonos en distintas métricas como: **grafos de salida/entrada**, **centralidad y cercanía**, o **cardinalidad**.
 
 ## Instalación
 1. Clonar el repositorio y entrar en la carpeta:
@@ -22,11 +22,11 @@ git clone https://github.com/martindroguett/Taller01-ProgCient
 ```bash
 cd Taller01-ProgCient
 ```
-2. Crear el entorno __conda__ y descargar sus dependencias con el archivo __yaml__:
+3. Crear el entorno __conda__ y descargar sus dependencias con el archivo __yaml__:
 ``` bash
 conda env create -f environment.yml
 ```
-3. Activar el entorno:
+4. Activar el entorno:
 ``` bash
 conda activate Taller_01-PC-MD-LM-FR
 ```
@@ -49,7 +49,7 @@ python main.py
 ```
 Taller01-ProgCient
 ├── Readme.md
-├── enviroment.yml
+├── environment.yml
 ├── graficos.py
 ├── main.py
 └── src
@@ -68,7 +68,7 @@ Taller01-ProgCient
 ```
 
 ## Menú Principal
-<img src=https://raw.githubusercontent.com/martindroguett/Taller01-ProgCient/main/imgs/Menu.png alt="Menu" width = 80% heigth = 80% align="center" >
+<img src=https://raw.githubusercontent.com/martindroguett/Taller01-ProgCient/main/imgs/Menu.png alt="Menu" width = 80% height = 80% align="center" >
 
 ## Integrantes
 <table>
@@ -82,14 +82,14 @@ Taller01-ProgCient
     </td>
     <td align="center">
       <a href="https://github.com/lucvsss">
-        <img src="https://github.com/lucvsss.png" width="100px;" alt="Nombre del Integrante 2" style="border-radius:50%"/>
+        <img src="https://github.com/lucvsss.png" width="100px;" alt="Lucas Munizaga" style="border-radius:50%"/>
         <br />
         <sub><b>Lucas Munizaga Mora</b></sub>
       </a>
     </td>
     <td align="center">
       <a href="https://github.com/Fifthtaschenmesser4">
-        <img src="https://github.com/Fifthtaschenmesser4.png" width="100px;" alt="Nombre del Integrante 3" style="border-radius:50%"/>
+        <img src="https://github.com/Fifthtaschenmesser4.png" width="100px;" alt="Francisco Romero" style="border-radius:50%"/>
         <br />
         <sub><b>Francisco Romero Opazo</b></sub>
       </a>
